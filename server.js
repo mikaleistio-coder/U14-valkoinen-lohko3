@@ -80,14 +80,15 @@ if (await standingsLink.count()) {
       }
     }
 
-    if (!bestTable || bestScore < 70) {
-      throw new Error(
-        "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
-      );
-    }
+    if (!bestTable || bestScore < 40) {
+  throw new Error(
+    "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
+  );
+}
+    
 
-    const headers = bestTable[bestHeaderIndex].map((x) =>
-      clean(x).toLowerCase()
+    
+    
     );
 
     const teamIndex = headers.findIndex((x) => x === "joukkue");
