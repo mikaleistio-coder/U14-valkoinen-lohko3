@@ -1,23 +1,16 @@
-import express from "express";
+ import express from "express";
 import { chromium } from "playwright";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const app = express();
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const app = express();
 const PORT = process.env.PORT || 3000;
 
 const SOURCE =
   "https://tulospalvelu.leijonat.fi/serie?lang=fi&season=2027&lid=98&ssid=3045";
-
-let data = {
-  updatedAt: null,
-  standings: [],
-  error: null
-};
 
 const clean = (x) =>
   String(x ?? "")
@@ -26,183 +19,160 @@ const clean = (x) =>
 
 async function scrape() {
   const browser = await chromium.launch({
-    headless: true
+    headless: true,
   });
 
   try {
-    const page = await browser.newPage({
-      locale: "fi-FI"
-    });
+    const page = await browser.newPage();
 
     await page.goto(SOURCE, {
       waitUntil: "networkidle",
-      timeout: 60000
+      timeout: 60000,
     });
 
     await page.waitForTimeout(3000);
 
-    // Yritetään avata oikea Sarjataulukko-näkymä.
-    const links = page.locator("a");
-
-    const linkCount = await links.count();
-
-    for (let i = 0; i < linkCount; i++) {
-      const text = clean(await links.nth(i).innerText().catch(() => ""));
-
-      if (text.toLowerCase() === "sarjataulukko") {
-        try {
-          await links.nth(i).click();
-          await page.waitForTimeout(3000);
-          break;
-        } catch {
-          // Jatketaan, jos linkin klikkaus ei onnistu.
-        }
-      }
-    }
-
-    const tables = await page.locator("table").evaluateAll((tableEls) => {
-      return tableEls.map((table) => {
-        return Array.from(table.querySelectorAll("tr")).map((row) =>
-          Array.from(row.querySelectorAll("th, td")).map((cell) =>
-            (cell.textContent || "")
-              .replace(/\s+/g, " ")
-              .trim()
+    const tables = await page.locator("table").evaluateAll((tableEls) =>
+      tableEls.map((table) =>
+        Array.from(table.querySelectorAll("tr")).map((tr) =>
+          Array.from(tr.querySelectorAll("th, td")).map((cell) =>
+            (cell.innerText || "").replace(/\s+/g, " ").trim()
           )
-        );
-      });
-    });
+        )
+      )
+    );
 
-    let standings = [];
+    let bestTable = null;
+    let bestHeaderIndex = -1;
+    let bestScore = -1;
 
-    // Etsitään vain rivejä, joissa on oikeasti tekstimuotoinen joukkueen nimi.
     for (const table of tables) {
-      for (const row of table) {
-        const cells = row.map(clean);
+      for (let i = 0; i < table.length; i++) {
+        const headers = table[i].map((x) => clean(x).toLowerCase());
 
-        if (cells.length < 3) continue;
+        let score = 0;
 
-        // Etsi riviltä ensimmäinen solu, joka näyttää sijoitusnumerolta.
-        const positionIndex = cells.findIndex((cell) =>
-          /^\d+$/.test(cell)
-        );
+        if (headers.includes("joukkue")) score += 50;
+        if (headers.includes("o")) score += 20;
+        if (headers.includes("v")) score += 20;
+        if (headers.includes("ta")) score += 10;
 
-        if (positionIndex === -1) continue;
-
-        // Joukkueen nimi pitää sisältää kirjaimia.
-        let teamIndex = -1;
-
-        for (
-          let i = positionIndex + 1;
-          i < cells.length;
-          i++
-        ) {
-          if (/[A-Za-zÅÄÖåäö]/.test(cells[i])) {
-            teamIndex = i;
-            break;
-          }
+        if (score > bestScore) {
+          bestScore = score;
+          bestTable = table;
+          bestHeaderIndex = i;
         }
-
-        if (teamIndex === -1) continue;
-
-        const team = cells[teamIndex];
-
-        // Hylätään liian lyhyet tai epäilyttävät tekstit.
-        if (team.length < 2) continue;
-        if (team.length > 100) continue;
-
-        // Joukkueen nimen jälkeen olevat numerot.
-        const numbers = cells
-          .slice(teamIndex + 1)
-          .map((value) => {
-            const match = value.match(/-?\d+/);
-            return match ? Number(match[0]) : null;
-          })
-          .filter((value) => value !== null);
-
-        // Sarjataulukon rivillä pitää olla useita tilastonumeroita.
-        if (numbers.length < 2) continue;
-
-        standings.push({
-          position: Number(cells[positionIndex]),
-          team,
-          played: numbers[0] ?? 0,
-          wins: numbers[1] ?? 0,
-          draws: numbers[2] ?? 0,
-          losses: numbers[3] ?? 0,
-          goalsFor: numbers[4] ?? 0,
-          goalsAgainst: numbers[5] ?? 0,
-          points: numbers[6] ?? 0
-        });
       }
     }
 
-    // Poista mahdolliset duplikaatit.
-    const unique = [];
-    const seen = new Set();
-
-    for (const team of standings) {
-      const key = `${team.position}-${team.team}`;
-
-      if (!seen.has(key)) {
-        seen.add(key);
-        unique.push(team);
-      }
-    }
-
-    standings = unique;
-
-    if (standings.length === 0) {
+    if (!bestTable || bestScore < 70) {
       throw new Error(
         "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
       );
     }
 
-    data = {
-      updatedAt: new Date().toISOString(),
-      standings,
-      error: null
-    };
-
-    console.log(
-      `Sarjataulukko haettu: ${standings.length} joukkuetta`
+    const headers = bestTable[bestHeaderIndex].map((x) =>
+      clean(x).toLowerCase()
     );
-  } catch (error) {
-    console.error("Scrape error:", error);
 
-    data.error = error?.message || String(error);
+    const teamIndex = headers.findIndex((x) => x === "joukkue");
+    const playedIndex = headers.findIndex((x) => x === "o");
+    const winsIndex = headers.findIndex((x) => x === "v");
+    const drawsIndex = headers.findIndex((x) => x === "ta");
+
+    const rows = [];
+
+    for (
+      let i = bestHeaderIndex + 1;
+      i < bestTable.length;
+      i++
+    ) {
+      const row = bestTable[i];
+
+      if (!row || row.length === 0) continue;
+
+      const team = clean(row[teamIndex]);
+
+      if (!team) continue;
+
+      if (
+        team.toLowerCase() === "joukkue" ||
+        team.toLowerCase().includes("joukkue")
+      ) {
+        continue;
+      }
+
+      const position =
+        Number(clean(row[0]).replace(",", ".")) || rows.length + 1;
+
+      const played =
+        playedIndex >= 0
+          ? Number(clean(row[playedIndex]).replace(",", ".")) || 0
+          : 0;
+
+      const wins =
+        winsIndex >= 0
+          ? Number(clean(row[winsIndex]).replace(",", ".")) || 0
+          : 0;
+
+      const draws =
+        drawsIndex >= 0
+          ? Number(clean(row[drawsIndex]).replace(",", ".")) || 0
+          : 0;
+
+      rows.push({
+        position,
+        team,
+        played,
+        wins,
+        draws,
+      });
+    }
+
+    if (rows.length === 0) {
+      throw new Error("Sarjataulukosta ei löytynyt joukkueita.");
+    }
+
+    return {
+      updatedAt: new Date().toISOString(),
+      source: SOURCE,
+      rows,
+    };
   } finally {
     await browser.close();
   }
 }
 
-app.use(express.static(__dirname));
-
 app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    updatedAt: data.updatedAt,
-    error: data.error
-  });
+  res.json({ ok: true });
 });
 
-app.get("/api/data", (req, res) => {
-  res.json(data);
-});
-
-app.post("/api/refresh", async (req, res) => {
+app.get("/api/data", async (req, res) => {
   try {
-    await scrape();
-
+    const data = await scrape();
     res.json(data);
   } catch (error) {
+    console.error(error);
     res.status(500).json({
-      updatedAt: data.updatedAt,
-      standings: data.standings,
-      error: error?.message || String(error)
+      error: error.message,
     });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.get("/api/refresh", async (req, res) => {
+  try {
+    const data = await scrape();
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error.message,
+    });
+  }
 });
+
+app.use(express.static(__dirname));
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});  
