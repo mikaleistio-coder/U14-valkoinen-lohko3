@@ -170,13 +170,13 @@ const hasV = headers.some((x) => x === "v" || x.includes("voitto"));
       rows.push({
         position,
         team,
-        played: number(playedIndex),
-        wins: number(winsIndex),
-        draws: number(drawsIndex),
-        losses: number(lossesIndex),
-        goalsFor: number(goalsForIndex),
-        goalsAgainst: number(goalsAgainstIndex),
-        points: number(pointsIndex),
+      played: number(2),
+wins: number(3),
+draws: number(4),
+losses: number(5),
+goalsFor: number(6),
+goalsAgainst: number(7),
+points: number(8),
       });
     }
 
