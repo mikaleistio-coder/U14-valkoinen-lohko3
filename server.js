@@ -31,7 +31,22 @@ async function scrape() {
     });
 
     await page.waitForTimeout(3000);
+const standingsLink = page
+  .getByRole("link", { name: "Sarjataulukko", exact: true })
+  .first();
 
+if (await standingsLink.count()) {
+  const href = await standingsLink.getAttribute("href");
+
+  if (href) {
+    await page.goto(new URL(href, SOURCE).href, {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+
+    await page.waitForTimeout(3000);
+  }
+}
     const tables = await page.locator("table").evaluateAll((tableEls) =>
       tableEls.map((table) =>
         Array.from(table.querySelectorAll("tr")).map((tr) =>
