@@ -42,7 +42,15 @@ async function scrape() {
         exact: true,
       });
 console.log("SARJATAULUKKO-LINKEJÄ:", await standingsLink.count());
-      if (await standingsLink.count()) {
+
+if (await standingsLink.count()) {
+  console.log(
+    "SARJATAULUKKO-HREF:",
+    await standingsLink.first().getAttribute("href")
+     );
+}
+
+if (await standingsLink.count()) {
         try {
           await standingsLink.first().click();
           await page.waitForTimeout(2000);
