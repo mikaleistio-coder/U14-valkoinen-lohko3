@@ -91,9 +91,9 @@ const hasO = headers.some((x) => x === "o" || x.includes("ottelu"));
 const hasV = headers.some((x) => x === "v" || x.includes("voitto"));
         if (hasTeam) console.log("JOUKKUE-OTSIKKO:", JSON.stringify(headers));
         if (hasTeam) console.log("JOUKKUE-TAULUKKO:", JSON.stringify(table.slice(0, 10)));
-        if (!hasTeam || !hasO || !hasV) {
-          continue;
-        }
+        if (!hasTeam || !headers.includes("p")) {
+  continue;
+}
 
         let score = 100;
 
