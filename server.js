@@ -80,7 +80,7 @@ async function scrape() {
     const hasTeam = headers.some((x) => x.includes("joukkue"));
 const hasO = headers.some((x) => x === "o" || x.includes("ottelu"));
 const hasV = headers.some((x) => x === "v" || x.includes("voitto"));
-
+        if (hasTeam) console.log("JOUKKUE-OTSIKKO:", JSON.stringify(headers));
         if (!hasTeam || !hasO || !hasV) {
           continue;
         }
