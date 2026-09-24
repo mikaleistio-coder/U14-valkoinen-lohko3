@@ -52,7 +52,7 @@ if (await standingsLink.count()) {
 
 if (await standingsLink.count()) {
         try {
-          await standingsLink.first().click();
+          await standingsLink.first().evaluate((el) => el.click());
           await page.waitForTimeout(2000);
           console.log("SARJATAULUKKO-ID:", await frame.locator("#xl-serie-standings").count());
         } catch (error) {
