@@ -56,7 +56,7 @@ if (await standingsLink.count()) {
           await page.waitForTimeout(2000);
           console.log("SARJATAULUKKO-ID:", await frame.locator("#xl-serie-standings").count());
         } catch (error) {
-          console.log("Sarjataulukko-linkin klikkaus ohitettiin.");
+          console.log("KLIKKAUS-VIRHE:", error.message);
         }
       }
     }
