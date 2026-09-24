@@ -1,4 +1,4 @@
- import express from "express";
+import express from "express";
 import { chromium } from "playwright";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -31,22 +31,25 @@ async function scrape() {
     });
 
     await page.waitForTimeout(3000);
-const standingsLink = page
-  .getByRole("link", { name: "Sarjataulukko", exact: true })
-  .first();
 
-if (await standingsLink.count()) {
-  const href = await standingsLink.getAttribute("href");
-
-  if (href) {
-    await page.goto(new URL(href, SOURCE).href, {
-      waitUntil: "networkidle",
-      timeout: 60000,
+    const standingsLink = page.getByRole("link", {
+      name: "Sarjataulukko",
+      exact: true,
     });
 
-    await page.waitForTimeout(3000);
-  }
-}
+    if (await standingsLink.count()) {
+      const href = await standingsLink.first().getAttribute("href");
+
+      if (href) {
+        await page.goto(new URL(href, SOURCE).href, {
+          waitUntil: "networkidle",
+          timeout: 60000,
+        });
+
+        await page.waitForTimeout(3000);
+      }
+    }
+
     const tables = await page.locator("table").evaluateAll((tableEls) =>
       tableEls.map((table) =>
         Array.from(table.querySelectorAll("tr")).map((tr) =>
@@ -65,12 +68,21 @@ if (await standingsLink.count()) {
       for (let i = 0; i < table.length; i++) {
         const headers = table[i].map((x) => clean(x).toLowerCase());
 
-        let score = 0;
+        const hasTeam = headers.some((x) => x === "joukkue");
+        const hasO = headers.some((x) => x === "o");
+        const hasV = headers.some((x) => x === "v");
 
-        if (headers.includes("joukkue")) score += 50;
-        if (headers.includes("o")) score += 20;
-        if (headers.includes("v")) score += 20;
+        if (!hasTeam || !hasO || !hasV) {
+          continue;
+        }
+
+        let score = 100;
+
         if (headers.includes("ta")) score += 10;
+        if (headers.includes("h")) score += 10;
+        if (headers.includes("tm")) score += 10;
+        if (headers.includes("pm")) score += 10;
+        if (headers.includes("p")) score += 10;
 
         if (score > bestScore) {
           bestScore = score;
@@ -80,21 +92,24 @@ if (await standingsLink.count()) {
       }
     }
 
-    if (!bestTable || bestScore < 40) {
-  throw new Error(
-    "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
-  );
-}
-    
+    if (!bestTable) {
+      throw new Error(
+        "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
+      );
+    }
 
-    
-    
+    const headers = bestTable[bestHeaderIndex].map((x) =>
+      clean(x).toLowerCase()
     );
 
     const teamIndex = headers.findIndex((x) => x === "joukkue");
     const playedIndex = headers.findIndex((x) => x === "o");
     const winsIndex = headers.findIndex((x) => x === "v");
     const drawsIndex = headers.findIndex((x) => x === "ta");
+    const lossesIndex = headers.findIndex((x) => x === "h");
+    const goalsForIndex = headers.findIndex((x) => x === "tm");
+    const goalsAgainstIndex = headers.findIndex((x) => x === "pm");
+    const pointsIndex = headers.findIndex((x) => x === "p");
 
     const rows = [];
 
@@ -113,45 +128,45 @@ if (await standingsLink.count()) {
 
       if (
         team.toLowerCase() === "joukkue" ||
-        team.toLowerCase().includes("joukkue")
+        team.toLowerCase() === "yhteensä"
       ) {
         continue;
       }
 
       const position =
-        Number(clean(row[0]).replace(",", ".")) || rows.length + 1;
+        /^\d+$/.test(clean(row[0])) ? Number(clean(row[0])) : rows.length + 1;
 
-      const played =
-        playedIndex >= 0
-          ? Number(clean(row[playedIndex]).replace(",", ".")) || 0
-          : 0;
+      const number = (index) => {
+        if (index < 0) return null;
 
-      const wins =
-        winsIndex >= 0
-          ? Number(clean(row[winsIndex]).replace(",", ".")) || 0
-          : 0;
+        const value = clean(row[index]).replace(",", ".");
 
-      const draws =
-        drawsIndex >= 0
-          ? Number(clean(row[drawsIndex]).replace(",", ".")) || 0
-          : 0;
+        if (!value) return null;
+
+        const parsed = Number(value);
+
+        return Number.isFinite(parsed) ? parsed : null;
+      };
 
       rows.push({
         position,
         team,
-        played,
-        wins,
-        draws,
+        played: number(playedIndex),
+        wins: number(winsIndex),
+        draws: number(drawsIndex),
+        losses: number(lossesIndex),
+        goalsFor: number(goalsForIndex),
+        goalsAgainst: number(goalsAgainstIndex),
+        points: number(pointsIndex),
       });
     }
 
     if (rows.length === 0) {
-      throw new Error("Sarjataulukosta ei löytynyt joukkueita.");
+      throw new Error("Sarjataulukosta ei löytynyt yhtään joukkuetta.");
     }
 
     return {
       updatedAt: new Date().toISOString(),
-      source: SOURCE,
       rows,
     };
   } finally {
@@ -159,36 +174,53 @@ if (await standingsLink.count()) {
   }
 }
 
-app.get("/health", (req, res) => {
-  res.json({ ok: true });
-});
+let cache = {
+  updatedAt: null,
+  rows: [],
+  error: null,
+};
 
-app.get("/api/data", async (req, res) => {
+async function refreshData() {
   try {
     const data = await scrape();
-    res.json(data);
+
+    cache = {
+      ...data,
+      error: null,
+    };
+
+    console.log(
+      `Scrape OK: ${data.rows.length} joukkuetta`
+    );
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: error.message,
-    });
+    console.error("Scrape error:", error);
+
+    cache.error = error.message;
   }
+}
+
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    updatedAt: cache.updatedAt,
+    rows: cache.rows.length,
+    error: cache.error,
+  });
+});
+
+app.get("/api/data", (req, res) => {
+  res.json(cache);
 });
 
 app.get("/api/refresh", async (req, res) => {
-  try {
-    const data = await scrape();
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: error.message,
-    });
-  }
+  await refreshData();
+  res.json(cache);
 });
 
 app.use(express.static(__dirname));
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});  
+
+  refreshData();
+});
