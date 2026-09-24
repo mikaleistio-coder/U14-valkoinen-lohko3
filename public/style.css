@@ -217,7 +217,53 @@ footer a {
   color: white;
 }
 
+/* Mobiilin sarjataulukko */
 @media (max-width: 700px) {
+  .card {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .card table {
+    width: 100%;
+    min-width: 720px;
+    white-space: nowrap;
+  }
+
+  .card th,
+  .card td {
+    padding: 11px 9px;
+  }
+
+  .card th:nth-child(1),
+  .card td:nth-child(1) {
+    min-width: 38px;
+  }
+
+  .card th:nth-child(2),
+  .card td:nth-child(2) {
+    min-width: 185px;
+    text-align: left;
+  }
+
+  .card th:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #e9edf0;
+  }
+
+  .card td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: white;
+  }
+
+  .card tbody tr:first-child td:nth-child(2) {
+    background: #ffe7e8;
+  }
+}
   body::before {
     height: 5px;
   }
