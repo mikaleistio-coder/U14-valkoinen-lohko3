@@ -235,9 +235,8 @@ app.get("/api/refresh", async (req, res) => {
   await refreshData();
   res.json(cache);
 });
-
-app.use(express.static(__dirname));
-
+app.use(express.static(path.join(__dirname, "public")));
+app.get("/",(_,r)=>r.sendFile(path.join(__dirname,"public","index.html")));
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 
