@@ -77,7 +77,7 @@ async function scrape() {
       for (let i = 0; i < table.length; i++) {
         const headers = table[i].map((x) => clean(x).toLowerCase());
 
-    const hasTeam = headers.some((x) => x.includes("joukkue"));
+    const hasTeam = headers.some((x) => x === "joukkue");
 const hasO = headers.some((x) => x === "o" || x.includes("ottelu"));
 const hasV = headers.some((x) => x === "v" || x.includes("voitto"));
         if (hasTeam) console.log("JOUKKUE-OTSIKKO:", JSON.stringify(headers));
