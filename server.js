@@ -41,7 +41,7 @@ async function scrape() {
         name: "Sarjataulukko",
         exact: true,
       });
-
+console.log("SARJATAULUKKO-LINKEJÄ:", await standingsLink.count());
       if (await standingsLink.count()) {
         try {
           await standingsLink.first().click();
