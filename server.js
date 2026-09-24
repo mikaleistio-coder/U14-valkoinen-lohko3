@@ -32,33 +32,42 @@ async function scrape() {
 
     await page.waitForTimeout(3000);
 
-    const standingsLink = page.getByRole("link", {
-      name: "Sarjataulukko",
-      exact: true,
-    });
+        const frames = page.frames();
 
-    if (await standingsLink.count()) {
-      const href = await standingsLink.first().getAttribute("href");
+    let tables = [];
 
-      if (href) {
-        await page.goto(new URL(href, SOURCE).href, {
-          waitUntil: "networkidle",
-          timeout: 60000,
-        });
+    for (const frame of frames) {
+      const standingsLink = frame.getByRole("link", {
+        name: "Sarjataulukko",
+        exact: true,
+      });
 
-        await page.waitForTimeout(3000);
+      if (await standingsLink.count()) {
+        try {
+          await standingsLink.first().click();
+          await page.waitForTimeout(2000);
+        } catch (error) {
+          console.log("Sarjataulukko-linkin klikkaus ohitettiin.");
+        }
       }
     }
 
-    const tables = await page.locator("table").evaluateAll((tableEls) =>
-      tableEls.map((table) =>
-        Array.from(table.querySelectorAll("tr")).map((tr) =>
-          Array.from(tr.querySelectorAll("th, td")).map((cell) =>
-            (cell.innerText || "").replace(/\s+/g, " ").trim()
+    for (const frame of page.frames()) {
+      const frameTables = await frame.locator("table").evaluateAll((tableEls) =>
+        tableEls.map((table) =>
+          Array.from(table.querySelectorAll("tr")).map((tr) =>
+            Array.from(tr.querySelectorAll("th, td")).map((cell) =>
+              (cell.innerText || "").replace(/\s+/g, " ").trim()
+            )
           )
         )
-      )
-    );
+      );
+
+      tables.push(...frameTables);
+    }
+
+    console.log(`Löytyi ${tables.length} taulukkoa.`);
+    
 
     let bestTable = null;
     let bestHeaderIndex = -1;
