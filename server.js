@@ -115,11 +115,10 @@ const hasV = headers.some((x) => x === "v" || x.includes("voitto"));
       }
     }
 
-    if (!bestTable) {
-      throw new Error(
-        "Oikeaa sarjataulukkoa ei löytynyt. Sivun rakenne poikkeaa odotetusta."
-      );
-    }
+   console.log(
+  "BEST TABLE:",
+  JSON.stringify(bestTable.slice(bestHeaderIndex, bestHeaderIndex + 4))
+); 
 
     const headers = bestTable[bestHeaderIndex].map((x) =>
       clean(x).toLowerCase()
