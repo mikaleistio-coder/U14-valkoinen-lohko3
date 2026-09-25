@@ -66,10 +66,11 @@ if (await standingsLink.count()) {
         tableEls.map((table) =>
           Array.from(table.querySelectorAll("tr")).map((tr) =>
             Array.from(tr.querySelectorAll("th, td")).map((cell) =>
-             ((cell.innerText || "").trim() ||
+            (
   (cell.textContent || "").trim() ||
-  cell.getAttribute("aria-label") ||
-  "").replace(/\s+/g, " ").trim() 
+  (cell.getAttribute("aria-label") || "").trim() ||
+  (cell.getAttribute("data-value") || "").trim()
+).replace(/\s+/g, " ").trim()
             )
           )
         )
